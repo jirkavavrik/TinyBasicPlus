@@ -132,6 +132,9 @@
 // IF testing with Visual C, this needs to be the first thing in the file.
 //#include "stdafx.h"
 
+#include <LiquidCrystal_I2C.h>
+//#include <Printable.h>
+
 char eliminateCompileErrors = 1;  // fix to suppress arduino build errors
 
 // hack to let makefiles work with this file unchanged
@@ -142,6 +145,11 @@ char eliminateCompileErrors = 1;  // fix to suppress arduino build errors
 #define ARDUINO 1
 #endif
 
+int row = 0;
+int col = 0;
+int rows = 2;
+int columns = 16;
+LiquidCrystal_I2C lcd(0x3f, columns, rows);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Feature option configuration...
@@ -330,10 +338,12 @@ static boolean triggerRun = false;
 enum {
   kStreamSerial = 0,
   kStreamEEProm,
-  kStreamFile
+  kStreamFile,
+  kStreamKeyboard,
+  kStreamDisplay
 };
-static unsigned char inStream = kStreamSerial;
-static unsigned char outStream = kStreamSerial;
+static unsigned char inStream = kStreamKeyboard;
+static unsigned char outStream = kStreamDisplay;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1445,7 +1455,7 @@ esave:
     outchar('\0');
 
     // go back to standard output, close the file
-    outStream = kStreamSerial;
+    outStream = kStreamDisplay;
     
     goto warmstart;
   }
@@ -1927,7 +1937,7 @@ save:
       printline();
 
     // go back to standard output, close the file
-    outStream = kStreamSerial;
+    outStream = kStreamDisplay;
 
     fp.close();
 #else // ARDUINO
@@ -2055,6 +2065,10 @@ static void line_terminator(void)
 void setup()
 {
 #ifdef ARDUINO
+  lcd.init();
+  lcd.backlight();
+  lcd.noAutoscroll();
+  lcd.blink();
   Serial.begin(kConsoleBaud);	// opens serial port
   while( !Serial ); // for Leonardo
   
@@ -2194,6 +2208,27 @@ static void outchar(unsigned char c)
     else 
   #endif /* ENABLE_EEPROM */
   #endif /* ARDUINO */
+  if( outStream == kStreamDisplay ) {
+    col++;
+  if(col >= columns){
+    col = 0;
+    if(row != rows-1){
+     row++;
+    } else {
+      row = 0;
+    }
+    lcd.setCursor(col,row);
+    lcd.print("                ");
+    col = 0;
+    }
+    lcd.setCursor(col,row);
+    if(!(c ==  13 || c == 10)){
+      lcd.write(c);
+    } else
+     lcd.write(255);
+  }
+  
+  else
     Serial.write(c);
 
 #else
@@ -2227,7 +2262,7 @@ static int initSD( void )
   sd_is_initialized = true;
 
   // and our file redirection flags
-  outStream = kStreamSerial;
+  outStream = kStreamDisplay;
   inStream = kStreamSerial;
   inhibitOutput = false;
 
